@@ -157,6 +157,16 @@ struct AppState: Decodable {
         limits(for: provider).compactMap(\.src).first ?? (limits_source ?? "")
     }
 
+    /// One honest, useful number per provider for the narrow menu bar.
+    /// Prefer the provider's active account window; when the source supplies
+    /// no active discriminator, use its tightest current window. Expired
+    /// windows never become status-bar guidance.
+    func statusBarLimit(for provider: String) -> Limit? {
+        let current = limits(for: provider).filter { !$0.expired }
+        let active = current.filter(\.a)
+        return (active.isEmpty ? current : active).max { $0.p < $1.p }
+    }
+
     /// Live Anthropic reads remain useful longer than a disk cache. Codex's
     /// local snapshot has the cache deadline: after five minutes another Codex
     /// instance could have spent usage we have not observed on this Mac.

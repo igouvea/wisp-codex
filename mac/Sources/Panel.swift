@@ -1,9 +1,24 @@
 import SwiftUI
 import ServiceManagement
+import AppKit
 
 /// State colours — the same ones the mascot uses on the board, so you never
 /// have to learn two visual vocabularies for the same information.
 enum Palette {
+    static func providerNS(_ name: String) -> NSColor {
+        switch name {
+        case "claude": return NSColor(srgbRed: 0.98, green: 0.55, blue: 0.20, alpha: 1)
+        case "codex":  return NSColor(srgbRed: 0.28, green: 0.64, blue: 0.96, alpha: 1)
+        default:       return .secondaryLabelColor
+        }
+    }
+
+    /// Provider colours are identity, not severity. Keep them separate from
+    /// `severity(_:)`: a blue Codex label may still contain a red critical bar.
+    static func provider(_ name: String) -> Color {
+        Color(nsColor: providerNS(name))
+    }
+
     static func state(_ name: String) -> Color {
         switch name {
         case "working": return Color(red: 0.98, green: 0.55, blue: 0.20)
@@ -188,6 +203,13 @@ struct Panel: View {
         VStack(alignment: .leading, spacing: 7) {
             SectionHeader(title: "Subscription limits")
             ForEach(d.limitProviders, id: \.self) { provider in
+                // Provider groups answer different questions and their
+                // percentages have different denominators. The separator
+                // makes that boundary visible before the eye reaches Codex.
+                if provider != d.limitProviders.first {
+                    Divider()
+                        .padding(.vertical, 3)
+                }
                 limitGroup(d, provider: provider)
             }
         }
@@ -202,6 +224,7 @@ struct Panel: View {
             HStack {
                 Text(d.providerLabel(provider))
                     .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(Palette.provider(provider))
                 Spacer()
                 if age >= 0 {
                     // The source matters as much as the age: Claude "live" is

@@ -1,4 +1,49 @@
 import SwiftUI
+import AppKit
+
+/// The status bar applies its own monochrome foreground style to ordinary
+/// SwiftUI text. Render both values into one non-template image so the two
+/// provider colours survive and macOS measures the pair as one compact item.
+struct ProviderStatusImage: View {
+    @ObservedObject var bridge: Bridge
+
+    var body: some View {
+        let claude = bridge.barLabel(for: "claude")
+        let codex = bridge.barLabel(for: "codex")
+        Image(nsImage: Self.makeImage(claude: claude, codex: codex,
+                                      claudeFresh: bridge.barValueTrustworthy(for: "claude"),
+                                      codexFresh: bridge.barValueTrustworthy(for: "codex")))
+            .renderingMode(.original)
+            .accessibilityLabel("Claude \(claude), Codex \(codex)")
+    }
+
+    private static func makeImage(claude: String, codex: String,
+                                  claudeFresh: Bool, codexFresh: Bool) -> NSImage {
+        let font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .semibold)
+        func value(_ text: String, provider: String, fresh: Bool) -> NSAttributedString {
+            NSAttributedString(string: text, attributes: [
+                .font: font,
+                .foregroundColor: Palette.providerNS(provider).withAlphaComponent(fresh ? 1 : 0.55),
+            ])
+        }
+
+        let left = value(claude, provider: "claude", fresh: claudeFresh)
+        let right = value(codex, provider: "codex", fresh: codexFresh)
+        let leftSize = left.size()
+        let rightSize = right.size()
+        let gap: CGFloat = 6
+        let size = NSSize(width: ceil(leftSize.width + gap + rightSize.width),
+                          height: ceil(max(leftSize.height, rightSize.height)))
+        let image = NSImage(size: size, flipped: false) { rect in
+            left.draw(at: NSPoint(x: 0, y: (rect.height - leftSize.height) / 2))
+            right.draw(at: NSPoint(x: leftSize.width + gap,
+                                   y: (rect.height - rightSize.height) / 2))
+            return true
+        }
+        image.isTemplate = false
+        return image
+    }
+}
 
 /// Wisp — the Waveshare bridge, with a face.
 ///
@@ -31,27 +76,11 @@ struct WispApp: App {
         MenuBarExtra {
             Panel(bridge: bridge)
         } label: {
-            // Icon + the number that matters. It draws little attention while
-            // everything is fine, and the percentage climbs with the pressure.
-            HStack(spacing: 3) {
-                Image(systemName: barIcon)
-                Text(bridge.barLabel)
-            }
+            // Orange is Claude, blue is Codex. Only the two values live in the
+            // menu bar; opening the panel provides the full labels and context.
+            ProviderStatusImage(bridge: bridge)
             .onAppear { bridge.start() }
         }
         .menuBarExtraStyle(.window)
-    }
-
-    /// The icon tells the state before you open the panel.
-    private var barIcon: String {
-        guard bridge.state.alive else { return "bolt.slash" }
-        guard let d = bridge.data else { return "bolt" }
-        if d.sessions.contains(where: { $0.st == "asking" || $0.st == "waiting" }) {
-            return "bolt.badge.checkmark"   // the ball is in your court
-        }
-        if d.sessions.contains(where: { $0.st == "working" || $0.st == "tool" }) {
-            return "bolt.fill"             // Claude working
-        }
-        return "bolt"
     }
 }

@@ -394,13 +394,19 @@ final class Bridge: ObservableObject {
         data = try? JSONDecoder().decode(AppState.self, from: Data(json.utf8))
     }
 
-    /// Short text for the menu bar icon. It favours the tightest limit,
-    /// because that is the information you would look over there for.
-    var barLabel: String {
+    /// Short provider-specific text for the menu bar. Claude and Codex have
+    /// unrelated denominators, so collapsing them back to one peak would erase
+    /// the distinction the provider-aware panel was built to preserve.
+    func barLabel(for provider: String) -> String {
         guard state.alive else { return "—" }
         guard let d = data else { return "…" }
-        if d.peak >= 0 { return "\(d.peak)%" }
-        let active = d.sessions.count
-        return active > 0 ? "\(active)" : "·"
+        guard let limit = d.statusBarLimit(for: provider) else { return "—" }
+        return "\(limit.p)%"
+    }
+
+    func barValueTrustworthy(for provider: String) -> Bool {
+        guard state.alive, let d = data,
+              let limit = d.statusBarLimit(for: provider) else { return false }
+        return d.limitTrustworthy(limit)
     }
 }
