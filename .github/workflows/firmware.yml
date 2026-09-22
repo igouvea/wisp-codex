@@ -1,0 +1,88 @@
+# Builds the firmware and publishes the binaries that ./flash.sh downloads.
+#
+# This is what lets people flash the board without ESP-IDF: they compile
+# nothing, they just receive these four binaries. Without this workflow
+# ./flash.sh has nowhere to download from and only works for people with a
+# local build.
+
+name: firmware
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+    paths: ['firmware/**', '.github/workflows/firmware.yml']
+  pull_request:
+    paths: ['firmware/**']
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: build (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [esp32s3, esp32c6]
+    steps:
+      - uses: actions/checkout@v4
+
+      # The version matters: Waveshare's BSP declares idf >=5.5 and does not
+      # build on 5.4. Pinned here for the same reason it is pinned in the README.
+      #
+      # pypng and lz4 are installed before the build because esp_mmap_assets
+      # converts the mascot art with LVGL's own LVGLImage.py, and those are the
+      # two modules it imports beyond the standard library. The IDF image ships
+      # neither — it does ship numpy, Pillow and packaging, which is why the
+      # failure surfaced one import at a time. A local machine has them from
+      # some earlier install, which is why this only ever broke here. They go in
+      # with pip, inside the container, because that IDF environment is the
+      # interpreter the build actually calls. Component Manager 2.5.2 also
+      # fixes candidate evaluation leaking missing Kconfig keys into otherwise
+      # valid dependency resolutions (seen when resolving LVGL 9.5.0).
+      - name: build with ESP-IDF 5.5
+        uses: espressif/esp-idf-ci-action@v1
+        with:
+          esp_idf_version: v5.5
+          target: ${{ matrix.target }}
+          path: firmware
+          command: pip install pypng lz4 idf-component-manager==2.5.2 && idf.py build
+
+      - name: package
+        if: matrix.target == 'esp32s3'
+        run: |
+          set -euo pipefail
+          cd firmware/build
+          mkdir -p ../../dist
+          # Flatten the paths: the zip becomes one flat folder, and
+          # flasher_args comes along so the flasher keeps reading offsets from
+          # it instead of having addresses copied into the code.
+          python3 - <<'PY'
+          import json, shutil, pathlib
+          d = pathlib.Path('.')
+          out = pathlib.Path('../../dist')
+          args = json.loads((d / 'flasher_args.json').read_text())
+          for off, rel in args['flash_files'].items():
+              shutil.copy2(d / rel, out / pathlib.Path(rel).name)
+              args['flash_files'][off] = pathlib.Path(rel).name
+          for k in ('bootloader', 'app', 'partition-table', 'storage'):
+              if k in args:
+                  args[k]['file'] = pathlib.Path(args[k]['file']).name
+          (out / 'flasher_args.json').write_text(json.dumps(args, indent=2))
+          PY
+          cd ../../dist && zip -q -r ../wisp-firmware.zip . && cd ..
+          unzip -l wisp-firmware.zip
+
+      - uses: actions/upload-artifact@v4
+        if: matrix.target == 'esp32s3'
+        with:
+          name: wisp-firmware
+          path: wisp-firmware.zip
+
+      # ./flash.sh fetches /releases/latest/download/wisp-firmware.zip, so the
+      # file name must not change between versions.
+      - name: publish to the release
+        if: matrix.target == 'esp32s3' && startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${GITHUB_REF_NAME}" wisp-firmware.zip --clobber

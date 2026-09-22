@@ -1,0 +1,36 @@
+## IDF Component Manager Manifest File
+dependencies:
+  # Waveshare's official BSP for this board: it already ships the CO5300 driver
+  # (QSPI), the CST9220 touch, the AXP2101 and the LVGL integration.
+  #
+  # It declares `targets: [esp32s3]`, so on a C6 build the manager would refuse
+  # to resolve it — the rule below takes it out of the picture. What stands in
+  # for it there is components/bsp_c6_amoled_216, which reimplements the same
+  # nine symbols this firmware uses.
+  waveshare/esp32_s3_touch_amoled_2_16:
+    version: "^2.0.1"
+    rules:
+      - if: "target == esp32s3"
+  # Keep this exact. LVGL 9.6 added Kconfig-conditional managed dependencies
+  # that ESP-IDF 5.5's bundled component manager tries to evaluate before LVGL
+  # has supplied those Kconfig symbols (MissingKconfigError: LV_USE_FREETYPE).
+  # 9.5.0 is the version this firmware and dependencies.lock were built with.
+  lvgl/lvgl:
+    version: "9.5.0"
+    public: true
+  # Resolves "<mac>.local" — macOS announces that on its own, so the board
+  # survives a DHCP address change without being reconfigured.
+  espressif/mdns:
+    version: "^1.8"
+  # 6-axis IMU: we use the accelerometer to know which way the board is turned
+  # and rotate the screen with it.
+  waveshare/qmi8658:
+    version: "*"
+  # These two used to arrive as transitive dependencies of the S3 BSP. Spelled
+  # out here because on the C6 nothing else pulls them in:
+  # spiffs_create_partition_assets() (used by the project CMakeLists) lives in
+  # esp_mmap_assets, and the decoder is what reads the RAW bitmaps from flash.
+  espressif/esp_mmap_assets:
+    version: "^2.0.0"
+  espressif/esp_lv_decoder:
+    version: "^0.4.3"

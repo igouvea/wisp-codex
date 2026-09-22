@@ -1,0 +1,31 @@
+# Build output — rebuilt by ./install.sh and by idf.py build
+mac/build/
+firmware/build/
+
+# ESP-IDF's virtualenv (esptool and friends). It comes from ESP-IDF's own
+# installer, it is not ours, and it weighs 45MB.
+.venv/
+__pycache__/
+*.pyc
+
+# Components fetched by ESP-IDF's manager from idf_component.yml. That is
+# 250MB of third-party code; versioning it bloated the repository and on top
+# of that froze versions the manager already knows how to resolve.
+firmware/managed_components/
+
+# Generated from sdkconfig.defaults, which IS versioned. The sdkconfig carries
+# absolute paths from whoever built it.
+firmware/sdkconfig
+firmware/sdkconfig.old
+
+# Dump of the board's factory flash (16MB). It is Waveshare's proprietary
+# firmware — not ours to redistribute, and each person takes their own before
+# flashing for the first time.
+backup/
+
+# The configuration lives in ~/.wisp/config.json, outside here on purpose,
+# because it holds the token. This line exists in case someone copies it here.
+config.json
+*.token
+
+.DS_Store

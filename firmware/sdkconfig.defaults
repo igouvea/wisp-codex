@@ -1,0 +1,69 @@
+# Wisp — options shared by every board.
+#
+# Anything that only exists on one chip lives in sdkconfig.defaults.<target>,
+# which ESP-IDF applies on top of this file automatically. That split is not
+# cosmetic: CONFIG_SPIRAM does not exist in the C6's Kconfig at all, and the
+# ESP32S3_*_CACHE options do not either.
+#
+# Checked against silicon on both boards:
+#   FLASHMODE_QIO   <- the eFuse says "quad (4 data lines)"
+#   FLASHSIZE_16MB  <- esptool detected 16MB (device 0x4018)
+CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_COMPILER_OPTIMIZATION_PERF=y
+
+CONFIG_FREERTOS_HZ=1000
+
+# Measured: TRY_ALLOCATE above alone left 16KB of internal free (minimum
+# 7.8KB), not enough for the panel's DMA. The rest of the savings come from
+# here.
+#
+# Turning AMPDU off costs throughput, and here that is irrelevant: our traffic
+# is one ~290 byte GET every 600ms. In exchange it frees the block-ack windows,
+# which are among the largest structures in internal RAM.
+CONFIG_ESP_WIFI_AMPDU_RX_ENABLED=n
+CONFIG_ESP_WIFI_AMPDU_TX_ENABLED=n
+CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=4
+CONFIG_ESP_WIFI_DYNAMIC_RX_BUFFER_NUM=8
+CONFIG_ESP_WIFI_TX_BUFFER_TYPE=1
+CONFIG_ESP_WIFI_DYNAMIC_TX_BUFFER_NUM=8
+
+# lwIP: smaller TCP windows. Also trading throughput for RAM, same reasoning.
+CONFIG_LWIP_TCP_SND_BUF_DEFAULT=2880
+CONFIG_LWIP_TCP_WND_DEFAULT=2880
+
+# —— LVGL ——
+CONFIG_LV_USE_CLIB_MALLOC=y
+CONFIG_LV_USE_CLIB_STRING=y
+CONFIG_LV_USE_CLIB_SPRINTF=y
+CONFIG_LV_DEF_REFR_PERIOD=15
+CONFIG_LV_OS_FREERTOS=y
+CONFIG_LV_OBJ_STYLE_CACHE=y
+CONFIG_LV_DRAW_SW_DRAW_UNIT_CNT=2
+CONFIG_LV_ATTRIBUTE_FAST_MEM_USE_IRAM=y
+
+# Fonts: only the ones the interface actually uses.
+#
+# NOTE: LVGL's built-in Montserrat faces cover ASCII only. Accented characters
+# come out as an empty box. That is one more reason every DISPLAYED string is
+# plain ASCII — generating a font with an extended charset is possible, but it
+# costs flash and an extra build step to solve only the accents.
+CONFIG_LV_FONT_MONTSERRAT_16=y
+CONFIG_LV_FONT_MONTSERRAT_20=y
+CONFIG_LV_FONT_MONTSERRAT_24=y
+CONFIG_LV_FONT_MONTSERRAT_28=y
+CONFIG_LV_FONT_MONTSERRAT_32=y
+CONFIG_LV_FONT_MONTSERRAT_38=y
+CONFIG_LV_FONT_MONTSERRAT_48=y
+
+# LVGL's FPS/CPU monitor: OFF. It was useful for measuring the animation
+# (23fps -> 66fps after cutting redundant redraws), but it is an overlay on the
+# screen and the device now sits in plain view.
+#
+# We do not lose the measurement: ui.c counts LV_EVENT_REFR_READY on its own
+# and logs the FPS over serial, which does not depend on these options.
+CONFIG_LV_USE_SYSMON=n
+CONFIG_LV_USE_PERF_MONITOR=n
+
+CONFIG_IDF_EXPERIMENTAL_FEATURES=y
