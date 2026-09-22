@@ -20,10 +20,23 @@ struct ProviderStatusImage: View {
     private static func makeImage(claude: String, codex: String,
                                   claudeFresh: Bool, codexFresh: Bool) -> NSImage {
         let font = NSFont.monospacedDigitSystemFont(ofSize: 12, weight: .semibold)
+        func statusColor(_ provider: String, fresh: Bool) -> NSColor {
+            // The menu bar sits directly on the wallpaper, unlike the panel's
+            // material-backed labels. Use a higher-luminance pair here and keep
+            // stale values readable; the panel still carries the exact age.
+            let color: NSColor
+            switch provider {
+            case "claude": color = NSColor(srgbRed: 1.00, green: 0.62, blue: 0.20, alpha: 1)
+            case "codex":  color = NSColor(srgbRed: 0.32, green: 0.74, blue: 1.00, alpha: 1)
+            default:       color = .secondaryLabelColor
+            }
+            return color.withAlphaComponent(fresh ? 1 : 0.82)
+        }
+
         func value(_ text: String, provider: String, fresh: Bool) -> NSAttributedString {
             NSAttributedString(string: text, attributes: [
                 .font: font,
-                .foregroundColor: Palette.providerNS(provider).withAlphaComponent(fresh ? 1 : 0.55),
+                .foregroundColor: statusColor(provider, fresh: fresh),
             ])
         }
 
